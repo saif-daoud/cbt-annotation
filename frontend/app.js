@@ -347,14 +347,12 @@ function loginHtml() {
   <section class="center-wrap">
     <div class="card login-card">
       <h1>CBT session annotation</h1>
-      <p class="lead">Annotate therapy session transcripts with the TOPAS framework: split each session into phases, annotate conversation states, therapist micro actions and phase rewards, and rate the session with the CTRS.</p>
       <form id="login-form" class="form-grid" novalidate>
         <label class="field">Email address<input id="login-email" type="email" autocomplete="email" maxlength="254" required value="${esc(S.email)}" /></label>
         <label class="field">Study access code<input id="login-code" type="password" autocomplete="current-password" required /></label>
         ${S.loginError ? `<p class="error" role="alert">${esc(S.loginError)}</p>` : ""}
         <button class="btn primary" type="submit">Continue</button>
       </form>
-      <p class="fine">Your email address identifies you. Use the same address each time to continue where you left off.</p>
     </div>
   </section>`;
 }
@@ -364,8 +362,7 @@ function profileHtml() {
   return `
   <section class="center-wrap">
     <div class="card login-card" style="width:min(620px,100%)">
-      <h1>About you</h1>
-      <p class="lead">First time here: please tell us about your background. These details are stored with your annotations.</p>
+      <h1>Your profile</h1>
       <form id="profile-form" class="form-grid two" novalidate>
         <label class="field full">Email address<input type="email" value="${esc(S.email)}" disabled /></label>
         <label class="field">Full name<input name="name" autocomplete="name" maxlength="160" required value="${esc(e.name || "")}" /></label>
@@ -417,7 +414,7 @@ function dashboardHtml() {
   return `
   <section class="page">
     <div class="page-head">
-      <div><h1>Welcome${first ? `, ${esc(first)}` : ""}</h1><p class="muted">${submitted} of ${S.sessions.length} sessions submitted. Sessions can be annotated in any order.</p></div>
+      <div><h1>Welcome${first ? `, ${esc(first)}` : ""}</h1><p class="muted">${submitted} of ${S.sessions.length} sessions submitted</p></div>
       <button class="btn" type="button" data-action="guide">Annotation guide</button>
     </div>
     <div class="card howto">
@@ -426,7 +423,6 @@ function dashboardHtml() {
         <li><b>Annotate the phases</b>For each phase, update the conversation state, give every therapist turn a micro action, and rate the phase reward.</li>
         <li><b>Rate and submit</b>Rate the whole session on the 11 CTRS items, then submit.</li>
       </ol>
-      <p class="muted">Everything is saved automatically, so you can stop at any point and continue later.</p>
     </div>
     <div class="session-list">${rows || '<p class="muted">No sessions are available yet.</p>'}</div>
   </section>`;

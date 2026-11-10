@@ -285,12 +285,12 @@ details.ref ul { padding-left: 18px; }
 .updated-summary .chip { background: var(--accent-soft); color: var(--accent-strong); display: inline-flex; gap: 6px; align-items: center; white-space: normal; }
 .updated-summary .chip button { border: 0; background: none; cursor: pointer; color: inherit; padding: 0; font-size: 0.95rem; line-height: 1; }
 
-.selected-turn { padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.86rem; margin-bottom: 12px; max-height: 150px; overflow-y: auto; }
+.selected-turn { padding: 8px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.85rem; margin-bottom: 10px; max-height: 110px; overflow-y: auto; }
 .selected-turn .who { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--accent); letter-spacing: 0.04em; }
-.options { display: grid; gap: 6px; }
+.options { display: grid; gap: 5px; }
 .option {
   display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; width: 100%;
-  border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 9px 10px;
+  border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 7px 10px;
   text-align: left; cursor: pointer;
 }
 .option:hover { border-color: var(--border-strong); background: var(--surface-2); }
