@@ -353,7 +353,7 @@ details.ref ul { padding-left: 18px; }
 .guide ol, .guide ul { padding-left: 20px; }
 .guide li { margin-bottom: 6px; }
 .keys { list-style: none; padding: 0 !important; }
-kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); font: 600 0.8rem/1.4 ui-monospace, monospace; text-align: center; }
+kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); font: 600 0.8rem/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center; }
 dl.meta { display: grid; grid-template-columns: 150px 1fr; gap: 8px 14px; margin: 0; }
 dl.meta dt { color: var(--muted); font-size: 0.86rem; }
 dl.meta dd { margin: 0; }

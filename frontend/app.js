@@ -407,7 +407,7 @@ function dashboardHtml() {
       </div>
       <div class="len">${s.therapist_turns} therapist turns<br><span class="muted">about ${Math.max(5, Math.round(s.word_count / 230))} min to read</span></div>
       <div><span class="status ${st.cls}">${esc(st.text)}</span><div class="progress"><i style="width:${st.pct}%"></i></div>
-        ${s.active_seconds ? `<span class="muted small">${minutes(s.active_seconds)} spent</span>` : ""}</div>
+        ${s.active_seconds >= 60 ? `<span class="muted small">${minutes(s.active_seconds)} spent</span>` : ""}</div>
       <a class="btn ${s.status === "submitted" ? "" : "primary"}" href="#/session/${esc(s.id)}">${action}</a>
     </div>`;
   }).join("");
@@ -707,7 +707,7 @@ function microStepHtml() {
   const pct = Math.round(100 * progress.microLabelled / Math.max(1, progress.microTotal));
   return `<div class="side-scroll">
     <h2>Micro actions</h2>
-    <p class="panel-intro">Select a therapist turn on the left, then choose the micro action that best describes it.${numbered ? " Keys <kbd>1</kbd>–<kbd>" + n + "</kbd>, <kbd>0</kbd> none, <kbd>O</kbd> other, <kbd>↓</kbd>/<kbd>↑</kbd> move." : ""}</p>
+    <p class="panel-intro">Select a therapist turn on the left, then choose the micro action that best describes it.${numbered ? " Keys: <kbd>1</kbd>–<kbd>" + n + "</kbd> choose, <kbd>0</kbd> None, letter <kbd>O</kbd> Other, <kbd>↓</kbd> <kbd>↑</kbd> move between turns." : ""}</p>
     <div class="micro-progress"><span>${progress.microLabelled} of ${progress.microTotal} therapist turns labelled</span><span>${pct}%</span></div>
     <div class="progress" style="margin-bottom:12px"><i style="width:${pct}%"></i></div>
     ${turn ? `<div class="selected-turn"><div class="who">Therapist #${turn.turn_index + 1}</div>${esc(turn.text)}</div>` : '<div class="selected-turn muted">Select a therapist turn on the left.</div>'}
