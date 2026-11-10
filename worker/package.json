@@ -1,0 +1,17 @@
+{
+  "name": "cbt-annotation-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:local": "node local_server.mjs",
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run --outdir dist",
+    "test": "node --test tests/*.test.js",
+    "seed:local": "node ../scripts/seed.mjs --api http://127.0.0.1:8787"
+  },
+  "devDependencies": {
+    "wrangler": "^4.54.0"
+  }
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Expert annotation of CBT session transcripts." />
+    <title>CBT Session Annotation</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#/" aria-label="CBT Session Annotation home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>CBT Session Annotation</span>
+      </a>
+      <div class="header-right" id="header-right"></div>
+    </header>
+
+    <main id="app" aria-live="polite"><p class="loading">Loading…</p></main>
+
+    <dialog class="dialog" id="guide-dialog" aria-labelledby="guide-title">
+      <header class="dialog-head">
+        <h2 id="guide-title">Annotation guide</h2>
+        <button class="icon-button" type="button" data-close aria-label="Close guide">×</button>
+      </header>
+      <div class="dialog-body guide">
+        <p>Each session is annotated in two stages followed by a short overall rating. Your work is saved automatically, so you can stop and come back at any time.</p>
+
+        <h3>Stage 1 · Read and segment</h3>
+        <p>Read the whole transcript first. Then split it into <b>phases</b>: continuous stretches in which the therapist pursues one overall strategy (a <b>macro action</b>). To start a new phase, hover over the therapist turn where the strategy changes and click <b>New phase here</b>. Label every phase with the macro action that fits best. Use <b>Merge with previous</b> to undo a split.</p>
+
+        <h3>Stage 2 · Annotate each phase</h3>
+        <p>Phases are annotated one at a time, in three short steps:</p>
+        <ol>
+          <li><b>Conversation state.</b> The state describes the patient and the session at the <em>start</em> of the phase. It begins with every dimension set to <em>None</em> and carries over from phase to phase, so you only update the dimensions that changed (usually based on what happened in the previous phase).</li>
+          <li><b>Micro actions.</b> Label every therapist turn in the phase with one micro action of the phase's macro action. Click a therapist turn, then pick an option, or use the number keys. Choose <b>None</b> for minimal responses such as “Mm-hmm”.</li>
+          <li><b>Phase reward.</b> Judge how far the phase achieved the goal of its macro action: <b>0 Unsuccessful</b>, <b>1 Acceptable</b> or <b>2 Ideal</b>, using the success levels shown.</li>
+        </ol>
+
+        <h3>Finish · CTRS rating</h3>
+        <p>Rate the therapist's performance over the whole session on the 11 items of the Cognitive Therapy Rating Scale (0–6). Anchors are provided for the even scores; use 1, 3 or 5 for performance between anchors. Then submit the session.</p>
+
+        <h3>When nothing fits: Other</h3>
+        <p>If none of the listed macro or micro actions is a good fit, choose <b>Other</b> and briefly describe what the therapist is doing. These descriptions help us improve the framework.</p>
+
+        <h3>Keyboard shortcuts (micro actions)</h3>
+        <ul class="keys">
+          <li><kbd>1</kbd>–<kbd>9</kbd> choose the numbered micro action</li>
+          <li><kbd>0</kbd> None (minimal response)</li>
+          <li><kbd>O</kbd> Other</li>
+          <li><kbd>↓</kbd> / <kbd>↑</kbd> next / previous therapist turn</li>
+        </ul>
+      </div>
+    </dialog>
+
+    <dialog class="dialog" id="info-dialog" aria-labelledby="info-title">
+      <header class="dialog-head">
+        <h2 id="info-title">Session information</h2>
+        <button class="icon-button" type="button" data-close aria-label="Close session information">×</button>
+      </header>
+      <div class="dialog-body" id="info-body"></div>
+    </dialog>
+
+    <div class="toast hidden" id="toast" role="status"></div>
+
+    <script src="./config.js"></script>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

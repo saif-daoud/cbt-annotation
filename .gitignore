@@ -1,0 +1,14 @@
+# Licensed transcripts and exports never go to git
+data/
+exports/
+# Local secrets / tooling
+worker/.dev.vars
+worker/.wrangler/
+worker/dist/
+node_modules/
+.browser-test/
+*.log
+__pycache__/
+
+# Production secrets kept only on this machine
+.secrets.local

@@ -1,0 +1,21 @@
+name = "cbt-annotation-api"
+main = "src/entry.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://saif-daoud.github.io,http://localhost:5500,http://127.0.0.1:5500"
+STORE_NAME = "cbt-annotation-study-v1"
+
+# Secrets (set with `wrangler secret put`, never committed):
+#   ACCESS_CODE   shared study access code typed by experts
+#   TOKEN_SECRET  long random string used to sign login tokens
+#   ADMIN_TOKEN   long random string for /api/admin/seed and /api/admin/export
+
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "AnnotationStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AnnotationStore"]

@@ -1,0 +1,161 @@
+{
+ "rule": {
+  "one_session_per_patient": true,
+  "requires_presenting_condition": true,
+  "max_therapist_turns": 130,
+  "max_words": 8500,
+  "ranking": "CTRS overall_sum from baselines/extrinsic_reward/CBT/annotations_extrinsic_reward.csv (ties: fewer words)",
+  "n_sessions": 10
+ },
+ "sessions": [
+  {
+   "id": "S01",
+   "user_idx": 6,
+   "session_idx": 16,
+   "patient": "SZ",
+   "conditions": [
+    "Anxiety",
+    "Fatigue"
+   ],
+   "therapist_turns": 44,
+   "patient_turns": 44,
+   "word_count": 5443,
+   "ctrs_overall_sum": 60
+  },
+  {
+   "id": "S02",
+   "user_idx": 37,
+   "session_idx": 0,
+   "patient": "M/L Couples",
+   "conditions": [
+    "Anger",
+    "Fatigue",
+    "Depression (emotion)",
+    "Sadness",
+    "Suicidal behavior",
+    "Guilt",
+    "Danger to self"
+   ],
+   "therapist_turns": 47,
+   "patient_turns": 70,
+   "word_count": 4477,
+   "ctrs_overall_sum": 55
+  },
+  {
+   "id": "S03",
+   "user_idx": 11,
+   "session_idx": 48,
+   "patient": "M",
+   "conditions": [
+    "Low self-esteem",
+    "Shame",
+    "Sadness",
+    "Anxiety",
+    "Guilt"
+   ],
+   "therapist_turns": 58,
+   "patient_turns": 59,
+   "word_count": 5311,
+   "ctrs_overall_sum": 57
+  },
+  {
+   "id": "S04",
+   "user_idx": 9,
+   "session_idx": 64,
+   "patient": "R",
+   "conditions": [
+    "Panic",
+    "Anxiety",
+    "Low self-esteem",
+    "Sadness"
+   ],
+   "therapist_turns": 80,
+   "patient_turns": 80,
+   "word_count": 5417,
+   "ctrs_overall_sum": 65
+  },
+  {
+   "id": "S05",
+   "user_idx": 15,
+   "session_idx": 58,
+   "patient": "S",
+   "conditions": [
+    "Depression (emotion)",
+    "Sadness"
+   ],
+   "therapist_turns": 95,
+   "patient_turns": 94,
+   "word_count": 6174,
+   "ctrs_overall_sum": 57
+  },
+  {
+   "id": "S06",
+   "user_idx": 1,
+   "session_idx": 24,
+   "patient": "K",
+   "conditions": [
+    "Anxiety"
+   ],
+   "therapist_turns": 108,
+   "patient_turns": 108,
+   "word_count": 6727,
+   "ctrs_overall_sum": 61
+  },
+  {
+   "id": "S07",
+   "user_idx": 13,
+   "session_idx": 5,
+   "patient": "RY",
+   "conditions": [
+    "Anxiety",
+    "Depression (emotion)"
+   ],
+   "therapist_turns": 119,
+   "patient_turns": 119,
+   "word_count": 8423,
+   "ctrs_overall_sum": 62
+  },
+  {
+   "id": "S08",
+   "user_idx": 2,
+   "session_idx": 4,
+   "patient": "SR",
+   "conditions": [
+    "Frustration",
+    "Isolation",
+    "Sexual dysfunction"
+   ],
+   "therapist_turns": 124,
+   "patient_turns": 124,
+   "word_count": 5677,
+   "ctrs_overall_sum": 58
+  },
+  {
+   "id": "S09",
+   "user_idx": 5,
+   "session_idx": 56,
+   "patient": "J",
+   "conditions": [
+    "Obsessive behavior"
+   ],
+   "therapist_turns": 125,
+   "patient_turns": 125,
+   "word_count": 5261,
+   "ctrs_overall_sum": 60
+  },
+  {
+   "id": "S10",
+   "user_idx": 0,
+   "session_idx": 0,
+   "patient": "JM",
+   "conditions": [
+    "Panic",
+    "Anxiety"
+   ],
+   "therapist_turns": 126,
+   "patient_turns": 126,
+   "word_count": 8018,
+   "ctrs_overall_sum": 66
+  }
+ ]
+}
