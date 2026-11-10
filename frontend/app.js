@@ -351,7 +351,7 @@ function loginHtml() {
         <label class="field">Email address<input id="login-email" type="email" autocomplete="email" maxlength="254" required value="${esc(S.email)}" /></label>
         <label class="field">Study access code<input id="login-code" type="password" autocomplete="current-password" required /></label>
         ${S.loginError ? `<p class="error" role="alert">${esc(S.loginError)}</p>` : ""}
-        <button class="btn primary" type="submit">Continue</button>
+        <button class="btn primary" type="submit">Sign in</button>
       </form>
     </div>
   </section>`;
@@ -362,7 +362,8 @@ function profileHtml() {
   return `
   <section class="center-wrap">
     <div class="card login-card" style="width:min(620px,100%)">
-      <h1>Your profile</h1>
+      <h1>Complete your profile</h1>
+      <p class="lead">Asked only on your first sign-in.</p>
       <form id="profile-form" class="form-grid two" novalidate>
         <label class="field full">Email address<input type="email" value="${esc(S.email)}" disabled /></label>
         <label class="field">Full name<input name="name" autocomplete="name" maxlength="160" required value="${esc(e.name || "")}" /></label>
