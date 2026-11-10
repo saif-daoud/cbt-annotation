@@ -4,12 +4,11 @@ import * as M from "./model.js";
 const API = String(window.APP_CONFIG?.apiBase || "").replace(/\/+$/, "");
 const TOKEN_KEY = "cbt-annotation-token";
 const STEPS = [
-  { key: "state", label: "State" },
   { key: "micro", label: "Micro actions" },
-  { key: "reward", label: "Reward" }
+  { key: "reward", label: "Phase reward" }
 ];
+const STAGE_NAMES = { segment: "Stage 1", annotate: "Stage 2", ctrs: "Stage 3" };
 const MACROS = TAXONOMY.macro_actions;
-const DIMS = TAXONOMY.state_dimensions;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const app = $("#app");
@@ -43,9 +42,7 @@ const S = {
   turns: [],
   ann: null,
   sel: null,
-  stateQuery: "",
-  stateOnlySet: false,
-  openDim: null,
+  showIntro: false,
   microQuery: "",
   showPrev: null,
   allAnchors: false,
@@ -287,8 +284,7 @@ async function openSession(sessionId) {
     S.save = { dirty: false, event: "", timer: null, chain: Promise.resolve(), status: "saved", error: "" };
     S.conflict = false;
     S.sel = null;
-    S.openDim = null;
-    S.stateQuery = "";
+    S.showIntro = false;
     S.microQuery = "";
     S.showPrev = null;
     S.errors = [];
@@ -421,7 +417,7 @@ function dashboardHtml() {
     <div class="card howto">
       <ol>
         <li><b>Read and segment</b>Read the transcript and split it into phases, each labelled with a macro action.</li>
-        <li><b>Annotate the phases</b>For each phase, update the conversation state, give every therapist turn a micro action, and rate the phase reward.</li>
+        <li><b>Annotate the phases</b>For each phase, give every therapist turn a micro action, then rate how well the phase achieved its goal.</li>
         <li><b>Rate and submit</b>Rate the whole session on the 11 CTRS items, then submit.</li>
       </ol>
     </div>
@@ -430,9 +426,14 @@ function dashboardHtml() {
 }
 
 // ------------------------------------------------------------------ rendering: session
+function introVisible() {
+  if (S.ann.status === "submitted") return false;
+  return S.showIntro || !doc().ui.seen?.[S.ann.stage];
+}
+
 function renderSession() {
   const stage = S.ann.status === "submitted" ? "done" : S.ann.stage;
-  const key = `${S.session.id}:${stage}`;
+  const key = `${S.session.id}:${stage}:${introVisible() ? "intro" : "work"}`;
   if (app.dataset.sessionKey !== key || !$("#session-body")) {
     app.dataset.sessionKey = key;
     app.innerHTML = `<div class="session-shell"><div class="session-bar" id="session-bar"></div><div class="session-body" id="session-body"></div></div>`;
@@ -464,6 +465,7 @@ function paintBar() {
     }).join("")}</ol>
     <div class="sb-right">
       <span id="save-status" class="save-status"></span>
+      ${S.ann.status !== "submitted" && !introVisible() ? '<button class="btn small" type="button" data-action="intro">Instructions</button>' : ""}
       <button class="btn small" type="button" data-action="info">Session info</button>
     </div>`;
   setSaveStatus(S.save.status, S.save.error);
@@ -482,6 +484,10 @@ function paintBody(reset) {
   const stage = S.ann.status === "submitted" ? "done" : S.ann.stage;
   if (stage === "done") {
     body.innerHTML = `<div class="pane" style="flex:1">${doneHtml()}</div>`;
+    return;
+  }
+  if (introVisible()) {
+    body.innerHTML = `<div class="pane intro-pane" id="intro-pane">${introHtml(stage)}</div>`;
     return;
   }
   if (reset || !$("#pane-main")) {
@@ -559,9 +565,10 @@ function segmentSideHtml() {
       <h2>Stage 1 · Read and segment</h2>
       <ol class="task-list">
         <li>Read the whole transcript.</li>
-        <li>Where the therapist's overall strategy changes, hover over that therapist turn and click <b>New phase here</b>.</li>
+        <li>Where the therapist moves to a new aim or strategy, hover over that therapist turn and click <b>New phase here</b>.</li>
         <li>Choose the macro action that best describes each phase, or <b>Other</b> if none fits.</li>
       </ol>
+      <button class="link" type="button" data-action="intro">Read the Stage 1 instructions again</button>
     </div>
     <div class="side-section">${sessionInfoCard()}</div>
     <div class="side-section">
@@ -591,7 +598,7 @@ function paintPhaseNav() {
   $("#phase-nav").innerHTML = `
     <button class="btn small" type="button" data-action="phase-prev" ${i === 0 ? "disabled" : ""} aria-label="Previous phase">‹</button>
     <div class="phase-dots" role="list">${progress.map((p, k) => {
-      const partial = !p.complete && (p.stateDone || p.microLabelled > 0 || p.rewardDone);
+      const partial = !p.complete && (p.microLabelled > 0 || p.rewardDone);
       return `<button type="button" role="listitem" class="${p.complete ? "complete" : partial ? "partial" : ""} ${k === i ? "current" : ""}" data-action="goto-phase2" data-phase="${k}" title="Phase ${k + 1}: ${esc(M.macroLabel(doc().phases[k]))}${p.complete ? " (complete)" : ""}">${k + 1}</button>`;
     }).join("")}</div>
     <button class="btn small" type="button" data-action="phase-next" ${i === doc().phases.length - 1 ? "disabled" : ""} aria-label="Next phase">›</button>
@@ -603,15 +610,13 @@ function annotateMainHtml() {
   const phase = curPhase();
   const r = ranges();
   const step = ui().step;
-  const showPrev = i > 0 && (S.showPrev ?? step === "state");
+  const showPrev = i > 0 && (S.showPrev ?? false);
   let html = '<div class="transcript">';
   if (i > 0) {
     const prev = doc().phases[i - 1];
     html += `<div class="prev-toggle"><span>Previous phase ${i}: ${esc(M.macroLabel(prev))} (turns ${r[i - 1].start + 1}–${r[i - 1].end + 1})</span>
       <button class="link" type="button" data-action="toggle-prev">${showPrev ? "Hide" : "Show"}</button></div>`;
     if (showPrev) html += r[i - 1].turns.map(turn => turnHtml(turn, { faded: true })).join("");
-  } else if (step === "state") {
-    html += `<div class="prev-toggle"><span>This is the first phase: nothing has been discussed yet.</span></div>`;
   }
   html += `<div class="divider-label">Phase ${i + 1} · ${esc(M.macroLabel(phase))}</div>`;
   html += r[i].turns.map(turn => turnHtml(turn, {
@@ -628,50 +633,12 @@ function annotateSideHtml() {
   const phase = curPhase();
   const progress = M.phaseProgress(TAXONOMY, phase, ranges()[i]);
   const step = ui().step;
-  const done = { state: progress.stateDone, micro: progress.microDone, reward: progress.rewardDone };
+  const done = { micro: progress.microDone, reward: progress.rewardDone };
   const tabs = `<div class="step-tabs" role="tablist">${STEPS.map((s, k) => `
     <button type="button" role="tab" class="${step === s.key ? "active" : ""}" aria-selected="${step === s.key}" data-action="step" data-step="${s.key}">
       ${k + 1}. ${s.label}${s.key === "micro" ? ` ${progress.microLabelled}/${progress.microTotal}` : ""} ${done[s.key] ? '<span class="tick">✓</span>' : ""}</button>`).join("")}</div>`;
-  const content = step === "state" ? stateStepHtml() : step === "micro" ? microStepHtml() : rewardStepHtml();
+  const content = step === "micro" ? microStepHtml() : rewardStepHtml();
   return tabs + content;
-}
-
-function stateStepHtml() {
-  const i = curPhaseIndex();
-  const phase = curPhase();
-  const carried = M.carriedState(TAXONOMY, doc(), i);
-  const current = M.stateAtPhaseStart(TAXONOMY, doc(), i);
-  const updates = phase.state_updates;
-  const setCount = Object.values(current).filter(v => v !== null).length;
-  const q = S.stateQuery.trim().toLowerCase();
-  const dims = DIMS.filter(d => (!q || d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q)) && (!S.stateOnlySet || current[d.name] !== null));
-  return `<div class="side-scroll">
-    <h2>Conversation state at the start of phase ${i + 1}</h2>
-    <p class="panel-intro">${i === 0
-      ? "Nothing has been discussed yet, so every dimension starts as <b>None</b>. Set only what is already known before the conversation starts (for example from the session information), or simply continue."
-      : `The state carries over from earlier phases. Update only the dimensions that changed or became clear during the previous phase. Everything else keeps its value.`}</p>
-    <div class="updated-summary">${Object.keys(updates).length
-      ? Object.entries(updates).map(([name, value]) => `<span class="chip">${esc(name)}: <b>${esc(value)}</b><button type="button" data-action="state-clear" data-dim="${esc(name)}" aria-label="Undo update of ${esc(name)}">×</button></span>`).join("")
-      : '<span class="muted small">No dimension updated in this phase yet.</span>'}</div>
-    <p class="muted small" style="margin:2px 0 0">${setCount} of ${DIMS.length} dimensions currently set.</p>
-    <div class="dim-tools">
-      <input type="search" data-field="state-query" placeholder="Search ${DIMS.length} dimensions…" value="${esc(S.stateQuery)}" aria-label="Search dimensions" />
-      <label><input type="checkbox" data-field="state-only-set" ${S.stateOnlySet ? "checked" : ""} /> set only</label>
-    </div>
-    <div class="dim-list">${dims.map(d => {
-      const value = current[d.name];
-      const open = S.openDim === d.name;
-      const updated = d.name in updates;
-      return `<div class="dim ${open ? "open" : ""} ${updated ? "updated" : ""}">
-        <button type="button" class="dim-row" data-action="dim-open" data-dim="${esc(d.name)}" aria-expanded="${open}">
-          <span class="name">${esc(d.name)}</span><span class="val ${value ? "set" : ""}">${esc(value || "None")}</span></button>
-        ${open ? `<div class="dim-detail"><p>${esc(d.description)}</p><div class="pills">${d.values.map(v => `
-          <button type="button" class="pill ${value === v ? "on" : ""} ${!updated && carried[d.name] === v ? "carried" : ""}" data-action="state-set" data-dim="${esc(d.name)}" data-value="${esc(v)}">${esc(v)}</button>`).join("")}
-          ${updated ? `<button type="button" class="link" data-action="state-clear" data-dim="${esc(d.name)}">keep previous (${esc(carried[d.name] || "None")})</button>` : ""}</div></div>` : ""}
-      </div>`;
-    }).join("") || '<p class="muted small">No matching dimension.</p>'}</div>
-  </div>
-  <div class="side-footer"><button class="btn primary" type="button" data-action="step" data-step="micro">State is up to date → Micro actions</button></div>`;
 }
 
 function microOptionList(phase) {
@@ -814,6 +781,95 @@ function doneHtml() {
   </div>`;
 }
 
+// ---------- stage briefings (shown before each stage; reopened with "Instructions")
+function introHeader(stage, title, lead) {
+  const number = { segment: 1, annotate: 2, ctrs: 3 }[stage];
+  return `<p class="intro-kicker">Session ${S.session.display_order} · Patient “${esc(S.session.patient)}” · Stage ${number} of 3</p>
+    <h1>${title}</h1><p class="intro-lead">${lead}</p>`;
+}
+
+function introSteps(steps) {
+  return `<ol class="intro-steps">${steps.map(([title, text]) => `<li><b>${title}</b><span>${text}</span></li>`).join("")}</ol>`;
+}
+
+function introActions(stage) {
+  const label = doc().ui.seen?.[stage]
+    ? `Back to ${STAGE_NAMES[stage]}`
+    : { segment: "Start Stage 1: show the transcript", annotate: "Start Stage 2: annotate phase 1", ctrs: "Start the CTRS rating" }[stage];
+  return `<div class="intro-actions"><button class="btn primary big" type="button" data-action="start-stage">${label} →</button></div>`;
+}
+
+function introHtml(stage) {
+  if (stage === "segment") {
+    const s = S.session;
+    return `<div class="intro">
+      ${introHeader(stage, "Read the session and divide it into phases", "In this first stage you read the whole transcript and describe how the session is structured.")}
+      <div class="intro-session"><b>About this session</b><p>${esc(s.summary)}</p>
+        <div class="chips">${s.conditions.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</div>
+        <span class="muted small">${s.therapist_turns} therapist turns · about ${Math.max(5, Math.round(s.word_count / 230))} minutes of reading</span></div>
+      ${introSteps([
+        ["Read the transcript", "Read the whole session first, as you would review a recorded session."],
+        ["Mark where each phase begins", "Hover over the therapist turn where a new phase starts and click <b>New phase here</b>. The first phase starts automatically at the beginning."],
+        ["Name each phase", "Choose the <b>macro action</b> that best describes what the therapist is doing in that phase. Choose <b>Other</b> and describe it in a few words if none of the 12 fits."]
+      ])}
+      <div class="intro-defs">
+        <div><h3>What is a phase?</h3><p>A continuous part of the session in which the therapist pursues <b>one therapeutic aim with one overall approach</b>, for example building rapport, assessing the presenting problem, setting the agenda, restructuring an automatic thought, or planning homework. A new phase begins when the therapist moves on to a different aim or strategy.</p><p>A phase usually spans several exchanges. A brief aside does not need its own phase.</p></div>
+        <div><h3>What is a macro action?</h3><p>The name of the therapist's <b>overall strategy</b> during a phase, comparable to the components of a structured CBT session (e.g. agenda setting, psychoeducation, cognitive restructuring, behavioural activation, homework review). Each phase gets exactly one macro action, and the same macro action can occur in several phases.</p></div>
+      </div>
+      <h2 class="intro-h2">The 12 macro actions</h2>
+      <div class="macro-grid">${MACROS.map(m => `<div class="macro-card"><b>${esc(m.name)}</b><p>${esc(m.description)}</p></div>`).join("")}</div>
+      ${introActions(stage)}
+    </div>`;
+  }
+  if (stage === "annotate") {
+    const example = MACROS.find(m => m.name.startsWith("Cognitive Interventions")) || MACROS[0];
+    const levels = example.goal.success_levels;
+    return `<div class="intro">
+      ${introHeader(stage, "Annotate each phase", `You now go through your ${doc().phases.length} phases one at a time. Each phase has two steps.`)}
+      ${introSteps([
+        ["Micro action for every therapist turn", "Click a therapist turn and choose its <b>micro action</b>: the specific therapeutic move in that turn, such as a validating reflection, a Socratic question or assigning homework. The options are the micro actions of the phase's macro action. Choose <b>None</b> for minimal responses (“Mm-hmm”, “Okay”) and <b>Other</b> if the move is not listed, with a short description. Patient turns are context only."],
+        ["Phase reward at the end of the phase", "Judge how far the phase achieved the <b>goal of its macro action</b>: <b>0 Unsuccessful</b>, <b>1 Acceptable</b> or <b>2 Ideal</b>. The goal and the criteria for each level are shown next to the transcript."]
+      ])}
+      <h2 class="intro-h2">Example: a “${esc(example.name)}” phase</h2>
+      <div class="intro-defs">
+        <div><h3>Micro actions you can choose from</h3><ol class="example-list">${example.micro_actions.map(a => `<li><b>${esc(a.name)}</b>: ${esc(a.description)}</li>`).join("")}</ol><p class="muted small">plus <b>None</b> and <b>Other</b></p></div>
+        <div><h3>Phase reward</h3><p><b>Goal:</b> ${esc(example.goal.objective)}</p>
+          <ul class="example-list"><li><b>2 Ideal</b>: ${esc(levels.ideal)}</li><li><b>1 Acceptable</b>: ${esc(levels.acceptable)}</li><li><b>0 Unsuccessful</b>: ${esc(levels.unsuccessful)}</li></ul></div>
+      </div>
+      <div class="intro-tip"><b>Faster with the keyboard:</b> <kbd>1</kbd>–<kbd>6</kbd> choose a micro action, <kbd>0</kbd> None, letter <kbd>O</kbd> Other, <kbd>↓</kbd> <kbd>↑</kbd> move between turns. After each choice the next unlabelled turn is selected. To change the phases themselves, go back to Stage 1 with the bar at the top.</div>
+      ${introActions(stage)}
+    </div>`;
+  }
+  const items = part => TAXONOMY.ctrs.items.filter(item => item.part === part).map(item => `<li>${esc(item.label)}</li>`).join("");
+  return `<div class="intro">
+    ${introHeader(stage, "Rate the whole session with the CTRS", "Finally, rate the therapist's competence over the whole session with the Cognitive Therapy Rating Scale (CTRS).")}
+    ${introSteps([
+      ["Score all 11 items from 0 to 6", "0 = poor, 2 = mediocre, 4 = good, 6 = excellent. Each item has anchors describing 0, 2, 4 and 6; use 1, 3 or 5 when performance falls between two anchors."],
+      ["Judge the therapist's demonstrated skill", "Rate what the therapist actually did, taking into account how difficult the patient was. The whole transcript stays visible next to the form."],
+      ["Submit", "Add an optional comment and submit. You can reopen a submitted session later if you need to change something."]
+    ])}
+    <div class="intro-defs">
+      <div><h3>${esc(TAXONOMY.ctrs.parts[0].title)}</h3><ol class="example-list">${items("part1")}</ol></div>
+      <div><h3>${esc(TAXONOMY.ctrs.parts[1].title)}</h3><ol class="example-list" start="7">${items("part2")}</ol></div>
+    </div>
+    ${introActions(stage)}
+  </div>`;
+}
+
+function startStage() {
+  const stage = S.ann.stage;
+  doc().ui.seen = { ...(doc().ui.seen || {}), [stage]: true };
+  S.showIntro = false;
+  if (stage === "annotate" && ui().step === "micro") {
+    S.sel = null;
+    selectFirstUnlabelled();
+  }
+  changed();
+  render();
+  window.scrollTo(0, 0);
+  if (stage === "annotate" && S.sel !== null) setTimeout(() => scrollToTurn(S.sel, "center"), 60);
+}
+
 // ------------------------------------------------------------------ actions
 function refresh({ main = true, side = true, nav = true, bar = true, reset = false } = {}) {
   if (S.view !== "session") return;
@@ -863,10 +919,9 @@ function setMacro(index, value, select) {
 
 function firstIncompleteStep(index) {
   const progress = M.phaseProgress(TAXONOMY, doc().phases[index], ranges()[index]);
-  if (!progress.stateDone) return "state";
   if (!progress.microDone) return "micro";
   if (!progress.rewardDone) return "reward";
-  return "state";
+  return "micro";
 }
 
 function goToPhase(index, step = null) {
@@ -874,7 +929,6 @@ function goToPhase(index, step = null) {
   ui().step = step || firstIncompleteStep(ui().phase);
   S.showPrev = null;
   S.errors = [];
-  S.openDim = null;
   S.sel = null;
   if (ui().step === "micro") selectFirstUnlabelled();
   changed();
@@ -884,7 +938,6 @@ function goToPhase(index, step = null) {
 
 function setStep(step) {
   if (ui().step === step) return;
-  if (ui().step === "state" && step !== "state") curPhase().state_done = true;
   ui().step = step;
   S.showPrev = null;
   S.errors = [];
@@ -950,8 +1003,7 @@ function completePhase() {
   const phase = curPhase();
   const progress = M.phaseProgress(TAXONOMY, phase, ranges()[i]);
   const errors = [];
-  if (!progress.stateDone) errors.push("Review the conversation state (step 1).");
-  if (!progress.microDone) errors.push(`${progress.microTotal - progress.microLabelled} therapist turn(s) still need a micro action (step 2).`);
+  if (!progress.microDone) errors.push(`${progress.microTotal - progress.microLabelled} therapist turn(s) still need a micro action (step 1).`);
   if (!progress.rewardDone) errors.push("Choose the phase reward.");
   if (errors.length) {
     S.errors = errors;
@@ -962,7 +1014,7 @@ function completePhase() {
   const all = phaseProgressAll();
   const nextIncomplete = all.findIndex((p, k) => k > i && !p.complete);
   const anyIncomplete = all.findIndex(p => !p.complete);
-  if (nextIncomplete >= 0) goToPhase(nextIncomplete, "state");
+  if (nextIncomplete >= 0) goToPhase(nextIncomplete, "micro");
   else if (anyIncomplete >= 0) { toast(`Phase ${anyIncomplete + 1} is not complete yet.`); goToPhase(anyIncomplete); }
   else goToStage("ctrs");
 }
@@ -1077,29 +1129,11 @@ document.addEventListener("click", event => {
     case "phase-next": goToPhase(curPhaseIndex() + 1); break;
     case "step": setStep(el.dataset.step); break;
     case "toggle-prev": {
-      const shown = S.showPrev ?? ui().step === "state";
+      const shown = S.showPrev ?? false;
       S.showPrev = !shown;
       refresh({ side: false, nav: false, bar: false, reset: !shown });
       break;
     }
-    case "dim-open":
-      S.openDim = S.openDim === el.dataset.dim ? null : el.dataset.dim;
-      refresh({ main: false, nav: false, bar: false });
-      break;
-    case "state-set": {
-      const phase = curPhase();
-      const carried = M.carriedState(TAXONOMY, doc(), curPhaseIndex())[el.dataset.dim];
-      if (el.dataset.value === carried) delete phase.state_updates[el.dataset.dim];
-      else phase.state_updates[el.dataset.dim] = el.dataset.value;
-      changed();
-      refresh({ main: false, bar: false });
-      break;
-    }
-    case "state-clear":
-      delete curPhase().state_updates[el.dataset.dim];
-      changed();
-      refresh({ main: false, bar: false });
-      break;
     case "select-turn":
       S.sel = Number(el.dataset.turn);
       refresh({ nav: false, bar: false });
@@ -1133,6 +1167,12 @@ document.addEventListener("click", event => {
       refresh({ main: false, nav: false });
       break;
     case "submit": submitSession(); break;
+    case "intro":
+      S.showIntro = true;
+      render();
+      window.scrollTo(0, 0);
+      break;
+    case "start-stage": startStage(); break;
     case "reopen": reopenSession(); break;
     default: break;
   }
@@ -1141,7 +1181,6 @@ document.addEventListener("click", event => {
 document.addEventListener("change", event => {
   const el = event.target;
   if (el.matches('select[data-action="macro"]')) setMacro(Number(el.dataset.phase), el.value, el);
-  else if (el.matches('[data-field="state-only-set"]')) { S.stateOnlySet = el.checked; refresh({ main: false, nav: false, bar: false }); }
 });
 
 document.addEventListener("input", event => {
@@ -1163,8 +1202,8 @@ document.addEventListener("input", event => {
   } else if (field === "reward_comment") { curPhase().reward_comment = el.value; changed(); }
   else if (field === "goal_other") { curPhase().goal_other = el.value; changed(); }
   else if (field === "ctrs_comments") { doc().ctrs_comments = el.value; changed(); }
-  else if (field === "state-query" || field === "micro-query") {
-    if (field === "state-query") S.stateQuery = el.value; else S.microQuery = el.value;
+  else if (field === "micro-query") {
+    S.microQuery = el.value;
     const start = el.selectionStart;
     refresh({ main: false, nav: false, bar: false });
     const again = document.querySelector(`[data-field="${field}"]`);

@@ -9,15 +9,15 @@ Expert annotation website for CBT session transcripts using the TOPAS components
 
 Experts sign in with their **email address** (the unique identifier) and the shared study access code. On first sign-in they fill in the same profile as in the cbt-live-interaction and cbt-simulator-evaluation studies: full name, role or specialty, institution, latest degree and years of clinical experience. Experts who already completed that profile in one of those studies can be pre-registered (see *Pre-register experts*) and go straight to their sessions. Returning experts continue where they left off; all work is autosaved.
 
-Each of the 10 sessions is annotated in two stages followed by a rating:
+Each of the 10 sessions is annotated in three stages. Every stage opens with an instruction page written for therapists (what to do, and what a phase, macro action, micro action or CTRS item means), which experts can reopen with **Instructions**.
 
 | Stage | Task |
 | --- | --- |
 | **1 · Read & segment** | Read the transcript (with summary and presenting conditions) and split it into phases. Each phase is labelled with one of the 12 macro actions, or **Other** with a description. |
-| **2 · Annotate phases** | For each phase, in order: (a) update the **conversation state** at the start of the phase: all 62 dimensions start at *None* and carry over, so the expert only changes what changed; (b) label every therapist turn with a **micro action** of the phase's macro action, or *None* for minimal responses, or **Other** with a description; (c) rate the **intrinsic reward** using the macro action's goal rubric (0 unsuccessful, 1 acceptable, 2 ideal). |
+| **2 · Annotate phases** | For each phase: (a) label every therapist turn with a **micro action** of the phase's macro action, or *None* for minimal responses, or **Other** with a description; (b) rate the **intrinsic reward** at the end of the phase using the macro action's goal rubric (0 unsuccessful, 1 acceptable, 2 ideal). |
 | **3 · CTRS rating** | Score the 11 CTRS items (0–6) with the anchors from `topa-server/topa/reward/cbt`, then submit. |
 
-The taxonomy comes from `new_simulations/topa_components/micro_actions.json` (macro actions, goals and micro actions) and `conversation_states.json`. `user_profile.json` and `macro_actions.json` are not used. The scales match the TOPAS annotators: one micro action per therapist utterance (`"None"` if nothing fits), and an intrinsic reward from 0 to 2.
+The taxonomy comes from `new_simulations/topa_components/micro_actions.json` (macro actions, goals and micro actions). Conversation states, `user_profile.json` and `macro_actions.json` are not annotated. The scales match the TOPAS annotators: one micro action per therapist utterance (`"None"` if nothing fits), and an intrinsic reward from 0 to 2.
 
 ## Session selection
 
@@ -37,7 +37,7 @@ The selection, with dataset indices, is recorded in [`scripts/selection.json`](s
 frontend/            static site (GitHub Pages), no build step
   app.js             UI
   model.js           annotation document model and validation (shared with the Worker)
-  taxonomy.js        generated: macro/micro actions, state dimensions, CTRS items
+  taxonomy.js        generated: macro/micro actions with goals, CTRS items
 worker/              Cloudflare Worker API
   src/index.js       routes: login, profile, sessions, autosave, submit, reopen, admin export/delete
   migrations/        D1 schema (applied by CI and by the local server)
@@ -99,7 +99,7 @@ ADMIN_TOKEN=... node scripts/export.mjs [--snapshots]   # writes exports/cbt-ann
 
 Each record contains the expert's email, session and dataset indices (`dataset_user_idx`, `dataset_session_idx`), status, active time, and:
 
-- `annotation.phases[]`: turn range, first/last therapist `utterance_id` (TOPAS numbering, `therapist_N`), macro action (or `Other` + description), state updates, full `state_at_start` (62 dimensions, `None` when unset), intrinsic reward and comment;
+- `annotation.phases[]`: turn range, first/last therapist `utterance_id` (TOPAS numbering, `therapist_N`), macro action (or `Other` + description), intrinsic reward and comment;
 - `annotation.micro_actions[]`: one entry per therapist utterance with its micro action (`None`, or `Other` + description);
 - `annotation.ctrs`: the 11 item scores, part sums, total and comments;
 - `raw`: the stored document.

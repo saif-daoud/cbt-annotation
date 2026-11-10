@@ -15,7 +15,7 @@ const [macroA, macroB] = TAXONOMY.macro_actions;
 
 test("taxonomy matches the TOPAS components and CTRS rubric", () => {
   assert.equal(TAXONOMY.macro_actions.length, 12);
-  assert.equal(TAXONOMY.state_dimensions.length, 62);
+  assert.equal(TAXONOMY.state_dimensions, undefined, "conversation states are no longer annotated");
   assert.equal(TAXONOMY.ctrs.items.length, 11);
   for (const item of TAXONOMY.ctrs.items) assert.deepEqual(Object.keys(item.anchors), ["0", "2", "4", "6"]);
 });
@@ -42,17 +42,10 @@ test("split, label, merge and reconcile", () => {
   assert.deepEqual(Object.keys(doc.phases[0].micro), ["6"]);
 });
 
-test("conversation state carries over between phases", () => {
-  const doc = M.emptyDocument();
-  M.splitAt(TAXONOMY, doc, turns, 4);
-  doc.phases[0].state_updates = { "Automatic Thoughts": "Negative" };
-  doc.phases[1].state_updates = { "Mood/Emotional State": "Neutral/Mixed" };
-  assert.equal(M.carriedState(TAXONOMY, doc, 0)["Automatic Thoughts"], null);
-  assert.equal(M.carriedState(TAXONOMY, doc, 1)["Automatic Thoughts"], "Negative");
-  const state = M.stateAtPhaseStart(TAXONOMY, doc, 1);
-  assert.equal(state["Automatic Thoughts"], "Negative");
-  assert.equal(state["Mood/Emotional State"], "Neutral/Mixed");
-  assert.equal(Object.keys(state).length, 62);
+test("stage briefings are remembered per stage", () => {
+  const doc = M.sanitizeDocument(TAXONOMY, { ui: { seen: { segment: true, annotate: "yes", bogus: true } } }, turns);
+  assert.deepEqual(doc.ui.seen, { segment: true });
+  assert.equal(doc.ui.step, "micro");
 });
 
 test("progress, validation and flattening", () => {
@@ -65,7 +58,7 @@ test("progress, validation and flattening", () => {
   doc.phases[1].macro_other = "Small talk";
   assert.equal(M.segmentationErrors(doc).length, 0);
 
-  doc.phases.forEach(p => { p.state_done = true; p.reward = 1; });
+  doc.phases.forEach(p => { p.reward = 1; });
   doc.phases[0].micro = { 0: { action: macroA.micro_actions[0].name }, 2: { action: M.NONE } };
   doc.phases[1].micro = { 4: { action: M.OTHER, other: "" }, 6: { action: macroB.micro_actions[0].name } };
   assert.match(M.annotationErrors(TAXONOMY, doc, turns).join(" "), /Phase 2: 1 therapist/);
@@ -88,7 +81,7 @@ test("sanitizeDocument drops invalid input", () => {
     phases: [
       { start: 4, macro: "Not a macro", micro: { 4: { action: "made up" } } },
       { start: 99, macro: macroA.name },
-      { start: 0, macro: macroA.name, state_updates: { "Automatic Thoughts": "Bogus", "Mood/Emotional State": "Positive" }, reward: 7, micro: { 1: { action: M.NONE } } }
+      { start: 0, macro: macroA.name, state_updates: { "Mood/Emotional State": "Positive" }, reward: 7, micro: { 1: { action: M.NONE } } }
     ],
     ctrs: { agenda: 9, feedback: 3 },
     ui: { phase: 10, step: "nope" }
@@ -96,9 +89,9 @@ test("sanitizeDocument drops invalid input", () => {
   const doc = M.sanitizeDocument(TAXONOMY, dirty, turns);
   assert.deepEqual(doc.phases.map(p => p.start), [0, 4]);
   assert.equal(doc.phases[1].macro, "");
-  assert.deepEqual(doc.phases[0].state_updates, { "Mood/Emotional State": "Positive" });
+  assert.equal(doc.phases[0].state_updates, undefined, "old state fields are dropped");
   assert.equal(doc.phases[0].reward, null);
   assert.deepEqual(doc.phases[0].micro, {}, "patient turns cannot carry micro actions");
   assert.deepEqual(doc.ctrs, { feedback: 3 });
-  assert.deepEqual(doc.ui, { phase: 1, step: "state" });
+  assert.deepEqual(doc.ui, { phase: 1, step: "micro", seen: {} });
 });

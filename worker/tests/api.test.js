@@ -103,8 +103,7 @@ test("full annotation flow", async () => {
   assert.equal(early.status, 422);
   assert.ok(early.data.errors.length > 0);
 
-  doc.phases[0].state_updates = { "Automatic Thoughts": "Negative" };
-  doc.phases.forEach(p => { p.state_done = true; p.reward = 2; });
+  doc.phases.forEach(p => { p.reward = 2; });
   doc.phases[0].micro = { 0: { action: macro.micro_actions[0].name } };
   doc.phases[1].micro = { 2: { action: M.NONE }, 4: { action: M.OTHER, other: "Logistics" } };
   for (const item of TAXONOMY.ctrs.items) doc.ctrs[item.key] = 5;
@@ -129,7 +128,8 @@ test("full annotation flow", async () => {
   assert.equal(record.email, "expert@clinic.org");
   assert.equal(record.dataset_user_idx, 3);
   assert.equal(record.annotation.ctrs.overall_sum, 55);
-  assert.equal(record.annotation.phases[1].state_at_start["Automatic Thoughts"], "Negative");
+  assert.equal(record.annotation.phases[1].state_at_start, undefined);
+  assert.equal(record.annotation.phases[0].intrinsic_reward, 2);
   assert.equal(record.annotation.phases[1].macro_action_other, "Scheduling");
   assert.deepEqual(record.annotation.micro_actions.map(m => m.utterance_id), ["therapist_0", "therapist_1", "therapist_2"]);
   assert.deepEqual(exported.data.snapshots.map(s => s.event), ["segmentation_completed", "submitted", "reopened"]);

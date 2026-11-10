@@ -2,7 +2,7 @@
 
 Outputs
 -------
-frontend/taxonomy.js     public ES module: macro/micro actions, conversation-state dimensions, CTRS items
+frontend/taxonomy.js     public ES module: macro/micro actions (with goals) and CTRS items
 scripts/selection.json   public: which dataset sessions were selected and why (indices + scores only)
 data/sessions.json       PRIVATE (git-ignored): selected transcripts
 data/seed.sql            PRIVATE (git-ignored): SQL loading the transcripts into D1 (npm run db:seed:remote)
@@ -102,7 +102,6 @@ def load_ctrs(module_path: Path) -> dict:
 
 def build_taxonomy(components: Path, ctrs_module: Path) -> dict:
     macros = json.loads((components / "micro_actions.json").read_text(encoding="utf-8"))
-    states = json.loads((components / "conversation_states.json").read_text(encoding="utf-8"))
     return {
         "macro_actions": [
             {
@@ -119,14 +118,6 @@ def build_taxonomy(components: Path, ctrs_module: Path) -> dict:
                 ],
             }
             for m in macros
-        ],
-        "state_dimensions": [
-            {
-                "name": clean(s["Variable Name"]),
-                "description": clean(s["Description"]),
-                "values": [clean(v) for v in s["Categorical values"]],
-            }
-            for s in states
         ],
         "ctrs": load_ctrs(ctrs_module),
     }
@@ -209,7 +200,7 @@ def main() -> None:
     )
     print(f"taxonomy: {len(taxonomy['macro_actions'])} macro actions, "
           f"{sum(len(m['micro_actions']) for m in taxonomy['macro_actions'])} micro actions, "
-          f"{len(taxonomy['state_dimensions'])} state dimensions, {len(taxonomy['ctrs']['items'])} CTRS items")
+          f"{len(taxonomy['ctrs']['items'])} CTRS items")
 
     dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
     with args.ctrs_csv.open(encoding="utf-8") as handle:

@@ -28,8 +28,6 @@ export function newPhase(start) {
     start,
     macro: "",
     macro_other: "",
-    state_updates: {},
-    state_done: false,
     micro: {},
     reward: null,
     reward_comment: "",
@@ -44,16 +42,12 @@ export function emptyDocument() {
     segmentation_done: false,
     ctrs: {},
     ctrs_comments: "",
-    ui: { phase: 0, step: "state" }
+    ui: { phase: 0, step: "micro", seen: {} }
   };
 }
 
 export function macroByName(taxonomy, name) {
   return taxonomy.macro_actions.find(macro => macro.name === name) || null;
-}
-
-export function dimensionByName(taxonomy, name) {
-  return taxonomy.state_dimensions.find(dim => dim.name === name) || null;
 }
 
 export function macroLabel(phase) {
@@ -105,32 +99,12 @@ export function phaseProgress(taxonomy, phase, range) {
   const microDone = labelled === range.therapist.length;
   const rewardDone = phase.reward === 0 || phase.reward === 1 || phase.reward === 2;
   return {
-    stateDone: Boolean(phase.state_done),
     microLabelled: labelled,
     microTotal: range.therapist.length,
     microDone,
     rewardDone,
-    complete: Boolean(phase.state_done) && microDone && rewardDone && phaseLabelled(phase)
+    complete: microDone && rewardDone && phaseLabelled(phase)
   };
-}
-
-// Full categorical state at the start of phase `phaseIndex` (inclusive of that phase's updates).
-// Unset dimensions are null ("None" in exports).
-export function stateAtPhaseStart(taxonomy, doc, phaseIndex) {
-  const state = Object.fromEntries(taxonomy.state_dimensions.map(dim => [dim.name, null]));
-  for (let index = 0; index <= phaseIndex && index < doc.phases.length; index += 1) {
-    for (const [name, value] of Object.entries(doc.phases[index].state_updates || {})) {
-      if (name in state) state[name] = value;
-    }
-  }
-  return state;
-}
-
-// State before the phase's own updates (i.e. carried over from earlier phases).
-export function carriedState(taxonomy, doc, phaseIndex) {
-  return phaseIndex <= 0
-    ? Object.fromEntries(taxonomy.state_dimensions.map(dim => [dim.name, null]))
-    : stateAtPhaseStart(taxonomy, doc, phaseIndex - 1);
 }
 
 export function documentProgress(taxonomy, doc, turns) {
@@ -201,7 +175,7 @@ export function setPhaseMacro(taxonomy, doc, turns, index, macro, macroOther = "
 }
 
 export function hasStageTwoData(phase) {
-  return Boolean(phase.state_done || Object.keys(phase.state_updates || {}).length || Object.keys(phase.micro || {}).length || phase.reward !== null);
+  return Boolean(Object.keys(phase.micro || {}).length || phase.reward !== null);
 }
 
 function text(value, max) {
@@ -216,7 +190,6 @@ export function sanitizeDocument(taxonomy, input, turns) {
   const therapistSet = new Set(turns.filter(turn => turn.speaker === "therapist").map(turn => turn.turn_index));
   const macroNames = new Set(taxonomy.macro_actions.map(m => m.name));
   const microNames = new Set(taxonomy.macro_actions.flatMap(m => m.micro_actions.map(a => a.name)));
-  const dims = new Map(taxonomy.state_dimensions.map(d => [d.name, new Set(d.values)]));
 
   const phases = Array.isArray(input.phases) ? input.phases : [];
   const seen = new Set();
@@ -229,10 +202,6 @@ export function sanitizeDocument(taxonomy, input, turns) {
     phase.id = /^[a-z0-9]{1,32}$/i.test(String(raw.id || "")) ? String(raw.id) : phase.id;
     phase.macro = raw.macro === OTHER || macroNames.has(raw.macro) ? raw.macro : "";
     phase.macro_other = phase.macro === OTHER ? text(raw.macro_other, 300) : "";
-    phase.state_done = raw.state_done === true;
-    for (const [name, value] of Object.entries(raw.state_updates || {})) {
-      if (dims.has(name) && dims.get(name).has(value)) phase.state_updates[name] = value;
-    }
     for (const [key, label] of Object.entries(raw.micro || {})) {
       const turnIndex = Number(key);
       if (!therapistSet.has(turnIndex) || !label) continue;
@@ -257,7 +226,8 @@ export function sanitizeDocument(taxonomy, input, turns) {
   const ui = input.ui || {};
   doc.ui = {
     phase: Number.isInteger(ui.phase) ? Math.min(Math.max(ui.phase, 0), doc.phases.length - 1) : 0,
-    step: ["state", "micro", "reward"].includes(ui.step) ? ui.step : "state"
+    step: ["micro", "reward"].includes(ui.step) ? ui.step : "micro",
+    seen: Object.fromEntries(["segment", "annotate", "ctrs"].filter(stage => ui.seen?.[stage] === true).map(stage => [stage, true]))
   };
   return reconcile(taxonomy, doc, turns);
 }
@@ -273,7 +243,6 @@ export function annotationErrors(taxonomy, doc, turns) {
   const errors = [];
   doc.phases.forEach((phase, index) => {
     const progress = phaseProgress(taxonomy, phase, ranges[index]);
-    if (!progress.stateDone) errors.push(`Phase ${index + 1}: confirm the conversation state.`);
     if (!progress.microDone) errors.push(`Phase ${index + 1}: ${progress.microTotal - progress.microLabelled} therapist turn(s) without a micro action.`);
     if (!progress.rewardDone) errors.push(`Phase ${index + 1}: choose the phase reward.`);
   });
@@ -295,7 +264,6 @@ export function flattenDocument(taxonomy, doc, turns) {
   const byIndex = new Map(turns.map(turn => [turn.turn_index, turn]));
   const phases = doc.phases.map((phase, index) => {
     const range = ranges[index];
-    const state = stateAtPhaseStart(taxonomy, doc, index);
     return {
       phase_index: index,
       from_turn: range.start,
@@ -307,8 +275,6 @@ export function flattenDocument(taxonomy, doc, turns) {
       macro_action: phase.macro === OTHER ? "Other" : phase.macro,
       macro_action_other: phase.macro === OTHER ? phase.macro_other : null,
       goal_other: phase.macro === OTHER ? phase.goal_other : null,
-      state_updates: phase.state_updates,
-      state_at_start: Object.fromEntries(Object.entries(state).map(([name, value]) => [name, value ?? "None"])),
       intrinsic_reward: phase.reward,
       intrinsic_reward_label: REWARD_LEVELS.find(level => level.value === phase.reward)?.key || null,
       reward_comment: phase.reward_comment
