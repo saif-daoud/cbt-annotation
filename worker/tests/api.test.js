@@ -34,14 +34,25 @@ async function call(path, { method = "GET", body, token, origin = ORIGIN } = {})
 }
 
 test("full annotation flow", async () => {
-  // Seed.
-  assert.equal((await call("/api/admin/seed", { method: "POST", body: { admin_token: "wrong", sessions: [] } })).status, 403);
-  const seeded = await call("/api/admin/seed", {
-    method: "POST",
-    body: { admin_token: "admin", sessions: [{ id: "S01", display_order: 1, user_idx: 3, session_idx: 4, patient: "X", title: "t", summary: "s", conditions: ["Anxiety"], therapist_turns: 3, patient_turns: 3, word_count: 12, turns }] }
-  });
-  assert.equal(seeded.status, 200);
-  assert.equal(seeded.data.turns, 6);
+  // Seed (production uses data/seed.sql through `wrangler d1 execute`).
+  await env.DB.prepare(
+    `INSERT INTO sessions (id, display_order, user_idx, session_idx, patient, title, summary, conditions_json, therapist_turns, patient_turns, word_count, ctrs_overall_sum)
+     VALUES ('S01', 1, 3, 4, 'X', 't', 's', '["Anxiety"]', 3, 3, 12, 60)`
+  ).run();
+  for (const t of turns) {
+    await env.DB.prepare("INSERT INTO session_turns (session_id, turn_index, speaker, utterance_id, text) VALUES ('S01', ?, ?, ?, ?)")
+      .bind(t.turn_index, t.speaker, t.utterance_id, t.text).run();
+  }
+
+  // An expert imported from an earlier study signs in without the profile step.
+  await env.DB.prepare(
+    `INSERT INTO experts (email, name, role, institution, latest_degree, years_experience, created_at, updated_at, last_seen_at, source)
+     VALUES ('imported@clinic.org', 'Dr I', 'Psychiatrist', 'Clinic', 'MD', 12, 'x', 'x', 'x', 'cbt-live-interaction') ON CONFLICT(email) DO NOTHING`
+  ).run();
+  const imported = await call("/api/login", { method: "POST", body: { email: "Imported@Clinic.org", access_code: "TEST-CODE" } });
+  assert.equal(imported.data.needs_profile, false);
+  assert.equal(imported.data.expert.name, "Dr I");
+  assert.equal((await call("/api/sessions", { token: imported.data.token })).status, 200);
 
   // CORS.
   assert.equal((await call("/api/health", { origin: "https://evil.example" })).status, 403);
@@ -112,6 +123,8 @@ test("full annotation flow", async () => {
   assert.equal((await call("/api/admin/export", { method: "POST", body: { admin_token: "x" } })).status, 403);
   const exported = await call("/api/admin/export", { method: "POST", body: { admin_token: "admin", include_snapshots: true } });
   assert.equal(exported.status, 200);
+  assert.equal(exported.data.experts.find(e => e.email === "imported@clinic.org").source, "cbt-live-interaction");
+  assert.equal(exported.data.experts.find(e => e.email === "expert@clinic.org").source, "self");
   const record = exported.data.annotations[0];
   assert.equal(record.email, "expert@clinic.org");
   assert.equal(record.dataset_user_idx, 3);

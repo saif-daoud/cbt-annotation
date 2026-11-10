@@ -3,11 +3,11 @@
 Expert annotation website for CBT session transcripts using the TOPAS components.
 
 - **Website:** https://saif-daoud.github.io/cbt-annotation/
-- **API:** https://cbt-annotation-api.saif-sedaoud.workers.dev (Cloudflare Worker + SQLite Durable Object)
+- **API:** https://cbt-annotation-api.saif-sedaoud.workers.dev (Cloudflare Worker + D1 database `cbt_annotation`, same setup as CBT-Human-Evaluation)
 
 ## What experts do
 
-Experts sign in with their **email address** (the unique identifier) and the shared study access code. On first sign-in they fill in a short profile: full name, role or specialty, institution, latest degree and years of clinical experience. Returning experts continue where they left off; all work is autosaved.
+Experts sign in with their **email address** (the unique identifier) and the shared study access code. On first sign-in they fill in the same profile as in the cbt-live-interaction and cbt-simulator-evaluation studies: full name, role or specialty, institution, latest degree and years of clinical experience. Experts who already completed that profile in one of those studies can be pre-registered (see *Pre-register experts*) and go straight to their sessions. Returning experts continue where they left off; all work is autosaved.
 
 Each of the 10 sessions is annotated in two stages followed by a rating:
 
@@ -39,25 +39,23 @@ frontend/            static site (GitHub Pages), no build step
   model.js           annotation document model and validation (shared with the Worker)
   taxonomy.js        generated: macro/micro actions, state dimensions, CTRS items
 worker/              Cloudflare Worker API
-  src/index.js       routes: login, profile, sessions, autosave, submit, reopen, admin seed/export
-  src/entry.js       Durable Object (SQLite) wrapper
+  src/index.js       routes: login, profile, sessions, autosave, submit, reopen, admin export/delete
+  migrations/        D1 schema (applied by CI and by the local server)
   local_server.mjs   local preview of site + API using node:sqlite
   tests/             model and end-to-end API tests
 scripts/
-  build_data.py      regenerate taxonomy.js, selection.json and data/sessions.json
-  seed.mjs           load data/sessions.json into an API
+  build_data.py      regenerate taxonomy.js, selection.json, data/sessions.json and data/seed.sql
+  import_experts.py  build data/experts.sql from earlier studies' participant profiles
   export.mjs         download all annotations
 ```
 
 ## Run locally
 
 ```bash
-python scripts/build_data.py                 # creates data/sessions.json (private)
+python scripts/build_data.py                 # creates data/seed.sql (private)
 cd worker && npm install
 cp .dev.vars.example .dev.vars               # local secrets
-npm run dev:local                            # http://127.0.0.1:8787
-# in another terminal:
-ADMIN_TOKEN=<ADMIN_TOKEN from .dev.vars> node ../scripts/seed.mjs --api http://127.0.0.1:8787
+npm run dev:local                            # http://127.0.0.1:8787, loads data/seed.sql on first start
 ```
 
 Sign in with any email address and the `ACCESS_CODE` from `.dev.vars`. `wrangler dev` also works where the `workerd` binary is allowed to run.
@@ -69,19 +67,29 @@ Tests: `cd worker && npm test`.
 GitHub Actions does the following on every push to `main`:
 
 - `pages.yml` publishes `frontend/` to GitHub Pages (**Settings → Pages → Source: GitHub Actions**);
-- `worker.yml` runs the tests and deploys the Worker when the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set; otherwise it only tests.
+- `worker.yml` runs the tests, applies the D1 migrations and deploys the Worker (repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`).
 
-The Worker's runtime secrets live in Cloudflare and persist across deploys. Set them once:
+Transcripts and personal data are never in git, so they are loaded into D1 from this machine. The Worker's runtime secrets live in Cloudflare and persist across deploys. One-time setup (already done):
 
 ```bash
 cd worker
 npx wrangler secret put ACCESS_CODE     # shared code given to experts
 npx wrangler secret put TOKEN_SECRET    # long random string (signs login tokens)
-npx wrangler secret put ADMIN_TOKEN     # long random string (seed/export)
-ADMIN_TOKEN=... node ../scripts/seed.mjs --api https://cbt-annotation-api.saif-sedaoud.workers.dev
+npx wrangler secret put ADMIN_TOKEN     # long random string (export/delete)
+npm run db:migrate:remote
+npm run db:seed:remote                  # loads data/seed.sql
 ```
 
-Re-seeding replaces the sessions and transcripts but keeps all annotations. If the frontend is hosted somewhere else, add its origin to `ALLOWED_ORIGINS` in `worker/wrangler.toml`.
+Re-seeding replaces the sessions and transcripts but keeps all annotations and experts.
+
+## Pre-register experts
+
+```bash
+python scripts/import_experts.py --json cbt-simulator-evaluation=data/simulator-evaluation-participants.json                                  --sqlite cbt-live-interaction=data/live-interaction-study.sqlite3
+cd worker && npm run db:experts:remote     # loads data/experts.sql
+```
+
+Only complete profiles are imported, and an email already registered on this site is never overwritten. Each expert's origin is kept in `experts.source`. Re-run the import any time; it is idempotent. If the frontend is hosted somewhere else, add its origin to `ALLOWED_ORIGINS` in `worker/wrangler.toml`.
 
 ## Export the annotations
 
@@ -103,5 +111,7 @@ To remove a pilot or test account and all of its annotations:
 ```bash
 curl -X POST https://cbt-annotation-api.saif-sedaoud.workers.dev/api/admin/delete-expert   -H "Content-Type: application/json" -d '{"admin_token":"...","email":"pilot@example.org"}'
 ```
+
+The data can also be inspected directly: `npx wrangler d1 execute cbt_annotation --remote --command "SELECT email, session_id, status, stage FROM annotations"`, or in the Cloudflare dashboard under D1.
 
 Before inviting experts, add any consent, withdrawal and contact wording your ethics approval requires.

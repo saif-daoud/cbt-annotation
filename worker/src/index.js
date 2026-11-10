@@ -241,17 +241,13 @@ async function handleSessionList(request, env) {
   const expert = await requireExpert(request, env);
   const { results: sessions } = await env.DB.prepare("SELECT * FROM sessions ORDER BY display_order").all();
   const { results: annotations } = await env.DB.prepare(
-    "SELECT session_id, status, stage, data_json, updated_at, submitted_at, active_seconds FROM annotations WHERE email = ?"
+    "SELECT session_id, status, stage, progress_json, updated_at, submitted_at, active_seconds FROM annotations WHERE email = ?"
   ).bind(expert.email).all();
   const bySession = new Map(annotations.map(row => [row.session_id, row]));
   const list = [];
   for (const row of sessions) {
     const annotation = bySession.get(row.id);
-    let progress = null;
-    if (annotation) {
-      const turns = await loadTurns(env, row.id);
-      progress = documentProgress(TAXONOMY, JSON.parse(annotation.data_json), turns);
-    }
+    const progress = annotation ? JSON.parse(annotation.progress_json || "{}") : null;
     list.push({
       ...publicSession(row),
       status: annotation ? annotation.status : "not_started",
@@ -284,6 +280,7 @@ async function saveDocument(env, email, sessionId, input, { status = "in_progres
   const turns = await loadTurns(env, sessionId);
   const doc = sanitizeDocument(TAXONOMY, input.data, turns);
   const dataJson = JSON.stringify(doc);
+  const progressJson = JSON.stringify(documentProgress(TAXONOMY, doc, turns));
   if (dataJson.length > MAX_DOC_BYTES) throw new HttpError(413, "The annotation is too large.");
   if (!STAGES.includes(stage)) throw new HttpError(400, "Unknown stage.");
   if (submitted) {
@@ -298,17 +295,17 @@ async function saveDocument(env, email, sessionId, input, { status = "in_progres
   if (!existing) {
     if (revision !== 0) throw new HttpError(409, "This annotation changed elsewhere.", { annotation: null });
     statements.push(env.DB.prepare(
-      `INSERT INTO annotations (email, session_id, status, stage, data_json, revision, active_seconds, started_at, updated_at, submitted_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
-    ).bind(email, sessionId, status, stage, dataJson, delta, stamp, stamp, submitted ? stamp : null));
+      `INSERT INTO annotations (email, session_id, status, stage, data_json, progress_json, revision, active_seconds, started_at, updated_at, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+    ).bind(email, sessionId, status, stage, dataJson, progressJson, delta, stamp, stamp, submitted ? stamp : null));
   } else {
     if (Number(existing.revision) !== revision) {
       throw new HttpError(409, "This annotation was changed in another window.", { annotation: publicAnnotation(existing) });
     }
     statements.push(env.DB.prepare(
-      `UPDATE annotations SET status = ?, stage = ?, data_json = ?, revision = revision + 1, active_seconds = active_seconds + ?,
-         updated_at = ?, submitted_at = ? WHERE email = ? AND session_id = ? AND revision = ?`
-    ).bind(status, stage, dataJson, delta, stamp, submitted ? stamp : status === "submitted" ? existing.submitted_at : null, email, sessionId, revision));
+      `UPDATE annotations SET status = ?, stage = ?, data_json = ?, progress_json = ?, revision = revision + 1,
+         active_seconds = active_seconds + ?, updated_at = ?, submitted_at = ? WHERE email = ? AND session_id = ? AND revision = ?`
+    ).bind(status, stage, dataJson, progressJson, delta, stamp, submitted ? stamp : status === "submitted" ? existing.submitted_at : null, email, sessionId, revision));
   }
   if (event) statements.push(await snapshot(env, email, sessionId, event, stage, dataJson));
   const results = await env.DB.batch(statements);
@@ -359,36 +356,6 @@ async function requireAdmin(env, input) {
   if (!env.ADMIN_TOKEN || !(await secureEqual(String(input.admin_token || ""), String(env.ADMIN_TOKEN)))) {
     throw new HttpError(403, "Not allowed.");
   }
-}
-
-// Replace the session catalogue and transcripts (annotations are kept). Body: { admin_token, sessions: [...] }
-async function handleSeed(request, env) {
-  const input = await body(request, 20 * 1024 * 1024);
-  await requireAdmin(env, input);
-  const sessions = Array.isArray(input.sessions) ? input.sessions : [];
-  if (!sessions.length) throw new HttpError(400, "No sessions supplied.");
-  const statements = [env.DB.prepare("DELETE FROM session_turns"), env.DB.prepare("DELETE FROM sessions")];
-  let turnCount = 0;
-  for (const s of sessions) {
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(s.id || "")) || !Array.isArray(s.turns) || !s.turns.length) {
-      throw new HttpError(400, `Invalid session ${s.id}.`);
-    }
-    statements.push(env.DB.prepare(
-      `INSERT INTO sessions (id, display_order, user_idx, session_idx, patient, title, summary, conditions_json,
-         therapist_turns, patient_turns, word_count, ctrs_overall_sum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(s.id, Number(s.display_order), Number(s.user_idx), Number(s.session_idx), String(s.patient), String(s.title || ""),
-      String(s.summary || ""), JSON.stringify(s.conditions || []), Number(s.therapist_turns), Number(s.patient_turns),
-      Number(s.word_count), s.ctrs_overall_sum ?? null));
-    for (const t of s.turns) {
-      if (!["therapist", "patient"].includes(t.speaker)) throw new HttpError(400, `Invalid speaker in ${s.id}.`);
-      statements.push(env.DB.prepare(
-        "INSERT INTO session_turns (session_id, turn_index, speaker, utterance_id, text) VALUES (?, ?, ?, ?, ?)"
-      ).bind(s.id, Number(t.turn_index), t.speaker, String(t.utterance_id), String(t.text)));
-      turnCount += 1;
-    }
-  }
-  await env.DB.batch(statements);
-  return json({ ok: true, sessions: sessions.length, turns: turnCount });
 }
 
 // Remove one expert and all of their annotations (e.g. pilot or test accounts). Body: { admin_token, email }
@@ -442,7 +409,7 @@ async function handleExport(request, env) {
   }
   return json({
     exported_at: now(),
-    experts: experts.map(e => ({ ...publicExpert(e), created_at: e.created_at, last_seen_at: e.last_seen_at })),
+    experts: experts.map(e => ({ ...publicExpert(e), source: e.source, created_at: e.created_at, last_seen_at: e.last_seen_at })),
     sessions: sessions.map(s => ({ ...publicSession(s), dataset_user_idx: Number(s.user_idx), dataset_session_idx: Number(s.session_idx), ctrs_overall_sum_gpt: s.ctrs_overall_sum })),
     annotations: out,
     snapshots
@@ -461,7 +428,6 @@ async function route(request, env) {
   if (path === "/api/profile" && method === "POST") return handleProfile(request, env);
   if (path === "/api/sessions" && method === "GET") return handleSessionList(request, env);
   if (path === "/api/admin/export" && method === "POST") return handleExport(request, env);
-  if (path === "/api/admin/seed" && method === "POST") return handleSeed(request, env);
   if (path === "/api/admin/delete-expert" && method === "POST") return handleDeleteExpert(request, env);
   const match = path.match(/^\/api\/sessions\/([A-Za-z0-9_-]{1,40})(?:\/(annotation|submit|reopen))?$/);
   if (match) {

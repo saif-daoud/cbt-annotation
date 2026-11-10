@@ -1,5 +1,3 @@
-// SQLite schema for the AnnotationStore Durable Object (applied idempotently on start-up).
-export const SCHEMA = `
 -- Experts are identified by their normalised (lower-case) email address.
 CREATE TABLE IF NOT EXISTS experts (
   email TEXT PRIMARY KEY,
@@ -10,7 +8,9 @@ CREATE TABLE IF NOT EXISTS experts (
   years_experience INTEGER NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_seen_at TEXT NOT NULL
+  last_seen_at TEXT NOT NULL,
+  -- where the profile came from: self (filled in here) or an earlier study it was imported from
+  source TEXT NOT NULL DEFAULT 'self'
 );
 
 -- Session content is loaded from the private seed (data/seed.sql); it is never committed to git.
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS annotations (
   status TEXT NOT NULL CHECK (status IN ('in_progress', 'submitted')),
   stage TEXT NOT NULL CHECK (stage IN ('segment', 'annotate', 'ctrs', 'done')),
   data_json TEXT NOT NULL,
+  progress_json TEXT NOT NULL DEFAULT '{}',
   revision INTEGER NOT NULL DEFAULT 1,
   active_seconds INTEGER NOT NULL DEFAULT 0,
   started_at TEXT NOT NULL,
@@ -66,4 +67,3 @@ CREATE TABLE IF NOT EXISTS annotation_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_annotations_session ON annotations(session_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_owner ON annotation_snapshots(email, session_id);
-`;

@@ -44,5 +44,7 @@ jobs:
             echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID repository secrets are not set; skipping deployment."
             exit 0
           fi
+          # Same pattern as CBT-Human-Evaluation: apply D1 migrations, then deploy the Worker.
           # Runtime secrets (ACCESS_CODE, TOKEN_SECRET, ADMIN_TOKEN) are stored in Cloudflare and persist across deploys.
+          npx wrangler d1 migrations apply cbt_annotation --remote
           npx wrangler deploy

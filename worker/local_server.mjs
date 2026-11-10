@@ -1,5 +1,5 @@
 // Local preview: serves frontend/ and the real API code (src/index.js) on one port, backed by node:sqlite.
-// Usage: node local_server.mjs   (then seed: ADMIN_TOKEN=local-admin-token node ../scripts/seed.mjs)
+// Usage: node local_server.mjs   (loads ../data/seed.sql and ../data/experts.sql into an empty local database)
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -27,8 +27,16 @@ function loadDevVars() {
 }
 
 loadDevVars();
+const DB = new Database(databasePath);
+const dataDir = path.join(workerRoot, "..", "data");
+if (!(await DB.prepare("SELECT COUNT(*) AS n FROM sessions").first()).n && fs.existsSync(path.join(dataDir, "seed.sql"))) {
+  DB.exec(fs.readFileSync(path.join(dataDir, "seed.sql"), "utf8"));
+  console.log("Loaded data/seed.sql");
+}
+if (fs.existsSync(path.join(dataDir, "experts.sql"))) DB.exec(fs.readFileSync(path.join(dataDir, "experts.sql"), "utf8"));
+
 const env = {
-  DB: new Database(databasePath),
+  DB,
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || `http://${host}:${port},http://localhost:${port}`,
   ACCESS_CODE: process.env.ACCESS_CODE || "LOCAL-ANNOTATE-2026",
   TOKEN_SECRET: process.env.TOKEN_SECRET || "local-development-token-secret",

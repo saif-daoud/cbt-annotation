@@ -1,9 +1,11 @@
 // D1-style adapter over node:sqlite, used by the local preview server and the tests.
+// Applies the same migrations as Cloudflare D1 (worker/migrations/*.sql).
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 
-import { SCHEMA } from "./src/schema.js";
+const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
 
 class Statement {
   constructor(db, sql, bindings = []) {
@@ -31,7 +33,15 @@ export class Database {
     if (filename !== ":memory:") fs.mkdirSync(path.dirname(filename), { recursive: true });
     this.db = new DatabaseSync(filename);
     if (filename !== ":memory:") this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec(SCHEMA);
+    this.db.exec("CREATE TABLE IF NOT EXISTS local_migrations (name TEXT PRIMARY KEY)");
+    for (const file of fs.readdirSync(migrationsDir).filter(f => f.endsWith(".sql")).sort()) {
+      if (this.db.prepare("SELECT 1 FROM local_migrations WHERE name = ?").get(file)) continue;
+      this.db.exec(fs.readFileSync(path.join(migrationsDir, file), "utf8"));
+      this.db.prepare("INSERT INTO local_migrations (name) VALUES (?)").run(file);
+    }
+  }
+  exec(sql) {
+    this.db.exec(sql);
   }
   prepare(sql) {
     return new Statement(this.db, sql);
