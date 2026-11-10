@@ -89,7 +89,7 @@ python scripts/import_experts.py --json cbt-simulator-evaluation=data/simulator-
 cd worker && npm run db:experts:remote     # loads data/experts.sql
 ```
 
-Only complete profiles are imported, and an email already registered on this site is never overwritten. Use `--fix-email OLD=NEW` to correct an address mistyped in the earlier study (e.g. an access code pasted into the email field). Each expert's origin is kept in `experts.source`. Re-run the import any time; it is idempotent. If the frontend is hosted somewhere else, add its origin to `ALLOWED_ORIGINS` in `worker/wrangler.toml`.
+The result is the union of all sources, merged by email (the most recent profile wins; `experts.source` lists every study the expert came from). Only complete profiles are imported, and a profile an expert filled in on this site is never overwritten. Use `--fix-email OLD=NEW` to correct an address mistyped in the earlier study (e.g. an access code pasted into the email field). Each expert's origin is kept in `experts.source`. Re-run the import any time; it is idempotent. If the frontend is hosted somewhere else, add its origin to `ALLOWED_ORIGINS` in `worker/wrangler.toml`.
 
 ## Export the annotations
 
