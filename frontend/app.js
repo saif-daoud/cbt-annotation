@@ -665,17 +665,13 @@ function microStepHtml() {
   const turn = S.sel !== null ? turnByIndex(S.sel) : null;
   const label = turn ? phase.micro[String(turn.turn_index)] : null;
   const groups = microOptionList(phase);
-  const numbered = phase.macro !== M.OTHER;
-  let n = 0;
-  const optionsHtml = groups.map(g => `${g.group ? `<div class="option-group-title">${esc(g.group)}</div>` : ""}${g.items.map(a => {
-    n += 1;
-    return `<button type="button" class="option ${label?.action === a.name ? "on" : ""}" data-action="micro" data-value="${esc(a.name)}">
-      <span class="k">${numbered ? n : "•"}</span><span><span class="t">${esc(a.name)}</span><span class="d">${esc(a.description)}</span></span></button>`;
-  }).join("")}`).join("");
+  const optionsHtml = groups.map(g => `${g.group ? `<div class="option-group-title">${esc(g.group)}</div>` : ""}${g.items.map(a => `
+    <button type="button" class="option ${label?.action === a.name ? "on" : ""}" data-action="micro" data-value="${esc(a.name)}">
+      <span class="k" aria-hidden="true"></span><span><span class="t">${esc(a.name)}</span><span class="d">${esc(a.description)}</span></span></button>`).join("")}`).join("");
   const pct = Math.round(100 * progress.microLabelled / Math.max(1, progress.microTotal));
   return `<div class="side-scroll">
     <h2>Micro actions</h2>
-    <p class="panel-intro">Select a therapist turn on the left, then choose the micro action that best describes it.${numbered ? " Keys: <kbd>1</kbd>–<kbd>" + n + "</kbd> choose, <kbd>0</kbd> None, letter <kbd>O</kbd> Other, <kbd>↓</kbd> <kbd>↑</kbd> move between turns." : ""}</p>
+    <p class="panel-intro">Select a therapist turn on the left, then choose the micro action that best describes it. The next unlabelled turn is selected automatically.</p>
     <div class="micro-progress"><span>${progress.microLabelled} of ${progress.microTotal} therapist turns labelled</span><span>${pct}%</span></div>
     <div class="progress" style="margin-bottom:12px"><i style="width:${pct}%"></i></div>
     ${turn ? `<div class="selected-turn"><div class="who">Therapist #${turn.turn_index + 1}</div>${esc(turn.text)}</div>` : '<div class="selected-turn muted">Select a therapist turn on the left.</div>'}
@@ -683,9 +679,9 @@ function microStepHtml() {
     <div class="options">
       ${optionsHtml}
       <button type="button" class="option ${label?.action === M.NONE ? "on" : ""}" data-action="micro" data-value="${M.NONE}">
-        <span class="k">0</span><span><span class="t">None</span><span class="d">No micro action applies (e.g. a minimal response such as “Mm-hmm” or “Okay”).</span></span></button>
+        <span class="k" aria-hidden="true"></span><span><span class="t">None</span><span class="d">No micro action applies (e.g. a minimal response such as “Mm-hmm” or “Okay”).</span></span></button>
       <button type="button" class="option ${label?.action === M.OTHER ? "on" : ""}" data-action="micro" data-value="${M.OTHER}">
-        <span class="k">O</span><span><span class="t">Other</span><span class="d">None of the listed micro actions fits: describe what the therapist does.</span></span></button>
+        <span class="k" aria-hidden="true"></span><span><span class="t">Other</span><span class="d">None of the listed micro actions fits: describe what the therapist does.</span></span></button>
       ${label?.action === M.OTHER ? `<input class="other-input" id="micro-other" type="text" maxlength="300" data-field="micro_other" placeholder="Describe the micro action, then press Enter" value="${esc(label.other || "")}" />` : ""}
     </div>
   </div>
@@ -836,7 +832,7 @@ function introHtml(stage) {
         <div><h3>Phase reward</h3><p><b>Goal:</b> ${esc(example.goal.objective)}</p>
           <ul class="example-list"><li><b>2 Ideal</b>: ${esc(levels.ideal)}</li><li><b>1 Acceptable</b>: ${esc(levels.acceptable)}</li><li><b>0 Unsuccessful</b>: ${esc(levels.unsuccessful)}</li></ul></div>
       </div>
-      <div class="intro-tip"><b>Faster with the keyboard:</b> <kbd>1</kbd>–<kbd>6</kbd> choose a micro action, <kbd>0</kbd> None, letter <kbd>O</kbd> Other, <kbd>↓</kbd> <kbd>↑</kbd> move between turns. After each choice the next unlabelled turn is selected. To change the phases themselves, go back to Stage 1 with the bar at the top.</div>
+      <div class="intro-tip">After each choice, the next unlabelled turn is selected automatically. To change the phases themselves, go back to Stage 1 with the bar at the top.</div>
       ${introActions(stage)}
     </div>`;
   }
@@ -966,16 +962,6 @@ function nextUnlabelled(after) {
   const unlabelled = turns.filter(t => !M.microLabelComplete(phase.micro[String(t.turn_index)]));
   if (!unlabelled.length) return null;
   return (unlabelled.find(t => t.turn_index > after) || unlabelled[0]).turn_index;
-}
-
-function moveSelection(delta) {
-  const turns = therapistTurns();
-  if (!turns.length) return;
-  const position = turns.findIndex(t => t.turn_index === S.sel);
-  const next = turns[Math.min(Math.max((position < 0 ? 0 : position + delta), 0), turns.length - 1)];
-  S.sel = next.turn_index;
-  refresh({ nav: false, bar: false });
-  scrollToTurn(S.sel);
 }
 
 function chooseMicro(action) {
@@ -1221,18 +1207,6 @@ document.addEventListener("keydown", event => {
     refresh({ bar: false });
     if (next !== null) scrollToTurn(next, "center");
     return;
-  }
-  if (S.view !== "session" || S.ann?.stage !== "annotate" || S.ann.status === "submitted" || ui().step !== "micro") return;
-  if (event.target.closest("input, textarea, select, dialog") || event.metaKey || event.ctrlKey || event.altKey) return;
-  const phase = curPhase();
-  if (event.key === "ArrowDown" || event.key === "j") { event.preventDefault(); moveSelection(1); return; }
-  if (event.key === "ArrowUp" || event.key === "k") { event.preventDefault(); moveSelection(-1); return; }
-  if (event.key === "0") { chooseMicro(M.NONE); return; }
-  if (event.key === "o" || event.key === "O") { event.preventDefault(); chooseMicro(M.OTHER); return; }
-  if (/^[1-9]$/.test(event.key) && phase.macro !== M.OTHER) {
-    const macro = M.macroByName(TAXONOMY, phase.macro);
-    const action = macro?.micro_actions[Number(event.key) - 1];
-    if (action) chooseMicro(action.name);
   }
 });
 

@@ -289,14 +289,14 @@ details.ref ul { padding-left: 18px; }
 .selected-turn .who { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--accent); letter-spacing: 0.04em; }
 .options { display: grid; gap: 5px; }
 .option {
-  display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; width: 100%;
+  display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; width: 100%;
   border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 7px 10px;
   text-align: left; cursor: pointer;
 }
 .option:hover { border-color: var(--border-strong); background: var(--surface-2); }
 .option.on { border-color: var(--accent); background: var(--accent-soft); }
-.option .k { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; background: var(--surface-2); font-size: 0.78rem; font-weight: 700; color: var(--muted); }
-.option.on .k { background: var(--accent); color: #fff; }
+.option .k { width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface); }
+.option.on .k { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px #fff; }
 .option .t { font-weight: 600; font-size: 0.88rem; display: block; }
 .option .d { font-size: 0.8rem; color: var(--muted); display: block; margin-top: 1px; }
 .option-group-title { margin: 10px 0 2px; font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
