@@ -98,4 +98,10 @@ Each record contains the expert's email, session and dataset indices (`dataset_u
 
 `--snapshots` adds the immutable copies saved at every stage transition, submission and reopening.
 
+To remove a pilot or test account and all of its annotations:
+
+```bash
+curl -X POST https://cbt-annotation-api.saif-sedaoud.workers.dev/api/admin/delete-expert   -H "Content-Type: application/json" -d '{"admin_token":"...","email":"pilot@example.org"}'
+```
+
 Before inviting experts, add any consent, withdrawal and contact wording your ethics approval requires.

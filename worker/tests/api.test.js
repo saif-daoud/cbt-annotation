@@ -120,4 +120,10 @@ test("full annotation flow", async () => {
   assert.equal(record.annotation.phases[1].macro_action_other, "Scheduling");
   assert.deepEqual(record.annotation.micro_actions.map(m => m.utterance_id), ["therapist_0", "therapist_1", "therapist_2"]);
   assert.deepEqual(exported.data.snapshots.map(s => s.event), ["segmentation_completed", "submitted", "reopened"]);
+
+  // Admin deletion of a (test) expert.
+  assert.equal((await call("/api/admin/delete-expert", { method: "POST", body: { admin_token: "x", email: "expert@clinic.org" } })).status, 403);
+  const removed = await call("/api/admin/delete-expert", { method: "POST", body: { admin_token: "admin", email: "Expert@Clinic.org" } });
+  assert.deepEqual(removed.data.deleted, { snapshots: 3, annotations: 1, experts: 1 });
+  assert.equal((await call("/api/sessions", { token })).status, 403, "deleted expert must complete the profile again");
 });

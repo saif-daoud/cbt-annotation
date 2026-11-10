@@ -391,6 +391,20 @@ async function handleSeed(request, env) {
   return json({ ok: true, sessions: sessions.length, turns: turnCount });
 }
 
+// Remove one expert and all of their annotations (e.g. pilot or test accounts). Body: { admin_token, email }
+async function handleDeleteExpert(request, env) {
+  const input = await body(request);
+  await requireAdmin(env, input);
+  const email = normalizeEmail(input.email);
+  if (!validEmail(email)) throw new HttpError(400, "Enter a valid email address.");
+  const results = await env.DB.batch([
+    env.DB.prepare("DELETE FROM annotation_snapshots WHERE email = ?").bind(email),
+    env.DB.prepare("DELETE FROM annotations WHERE email = ?").bind(email),
+    env.DB.prepare("DELETE FROM experts WHERE email = ?").bind(email)
+  ]);
+  return json({ ok: true, email, deleted: { snapshots: results[0].meta.changes, annotations: results[1].meta.changes, experts: results[2].meta.changes } });
+}
+
 async function handleExport(request, env) {
   const input = await body(request);
   await requireAdmin(env, input);
@@ -448,6 +462,7 @@ async function route(request, env) {
   if (path === "/api/sessions" && method === "GET") return handleSessionList(request, env);
   if (path === "/api/admin/export" && method === "POST") return handleExport(request, env);
   if (path === "/api/admin/seed" && method === "POST") return handleSeed(request, env);
+  if (path === "/api/admin/delete-expert" && method === "POST") return handleDeleteExpert(request, env);
   const match = path.match(/^\/api\/sessions\/([A-Za-z0-9_-]{1,40})(?:\/(annotation|submit|reopen))?$/);
   if (match) {
     const [, sessionId, action] = match;
