@@ -3,6 +3,7 @@
 Sources (repeatable, SOURCE is a free label stored in experts.source):
   --sqlite SOURCE=PATH   a study SQLite file with a `participants` table (e.g. cbt-live-interaction server/data/study.sqlite3)
   --json   SOURCE=PATH   a JSON list of participants (e.g. exported from cbt-simulator-evaluation)
+  --fix-email OLD=NEW    correct a mistyped address before importing (repeatable)
 
 Each participant needs: email, name, role, institution, latest_degree, years_experience (and profile_completed if present).
 Duplicates across sources are merged by lower-cased email; the most recently active complete profile wins.
@@ -21,6 +22,7 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -79,8 +81,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--sqlite", type=labelled, action="append", default=[])
     parser.add_argument("--json", type=labelled, action="append", default=[])
+    parser.add_argument("--fix-email", action="append", default=[], metavar="OLD=NEW")
     parser.add_argument("--out", type=Path, default=ROOT / "data" / "experts.sql")
     args = parser.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    fixes = {}
+    for item in args.fix_email:
+        old, _, new = item.partition("=")
+        if not new:
+            parser.error("--fix-email expects OLD=NEW")
+        fixes[old.strip().lower()] = new.strip().lower()
     if not args.sqlite and not args.json:
         parser.error("give at least one --sqlite or --json source")
 
@@ -91,6 +101,9 @@ def main() -> None:
             kept = [p for p in (normalise(row, source) for row in rows) if p]
             print(f"{source}: {len(rows)} participants, {len(kept)} with a complete profile ({path})")
             for profile in kept:
+                if profile["email"] in fixes:
+                    print(f"  corrected {profile['email']} -> {fixes[profile['email']]}")
+                    profile["email"] = fixes[profile["email"]]
                 current = merged.get(profile["email"])
                 if current is None or profile["seen"] > current["seen"]:
                     merged[profile["email"]] = profile
